@@ -81,3 +81,4 @@ export function buildBillWhatsAppMessage(params: BillWhatsAppParams): string {
 
   return lines.join('\n');
 }
+
