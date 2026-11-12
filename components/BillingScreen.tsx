@@ -320,6 +320,9 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill' | 'crm'>('tables');
   const [showMobileCheckoutModal, setShowMobileCheckoutModal] = useState(false);
+  const [showWhatsAppBillModal, setShowWhatsAppBillModal] = useState(false);
+  const [waBillName, setWaBillName] = useState('');
+  const [waBillPhone, setWaBillPhone] = useState('');
   const [isCategoryCollapsed, setIsCategoryCollapsed] = useState(false);
   const mobileTablesContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileCategoriesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -1411,7 +1414,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
     }
   };
 
-  const handleSendWhatsAppBill = (phoneOverride?: string) => {
+  const handleSendWhatsAppBill = (phoneOverride?: string, nameOverride?: string) => {
     const selectedTableItems = selectedTableId
       ? tableCarts[selectedTableId]?.items || []
       : [];
@@ -1421,12 +1424,13 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       return;
     }
 
-    let phoneToUse = (phoneOverride ?? customerPhone ?? '').trim();
+    const phoneToUse = (phoneOverride ?? customerPhone ?? '').trim();
+    const nameToUse = (nameOverride ?? customerName ?? '').trim();
     if (!phoneToUse) {
-      const prompted = window.prompt('Enter customer WhatsApp number:');
-      if (!prompted || !prompted.trim()) return;
-      phoneToUse = prompted.trim();
-      setCustomerPhone(phoneToUse);
+      setWaBillName(nameToUse);
+      setWaBillPhone('');
+      setShowWhatsAppBillModal(true);
+      return;
     }
 
     const checkoutTotals = calculateOrderTotals(
@@ -1445,7 +1449,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       billNo: `INV-${billCounter + 1}`,
       tableName: effectiveOrderType === 'DINE_IN' && selectedTable ? selectedTable.name : undefined,
       orderType: effectiveOrderType,
-      customerName: (customerName || '').trim() || undefined,
+      customerName: nameToUse || undefined,
       items: checkoutItems,
       subtotal: checkoutTotals.subtotal,
       tax: checkoutTotals.tax,
@@ -1460,8 +1464,92 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       return;
     }
 
-    onSaveCrmCustomer?.((customerName || '').trim() || 'Guest', phoneToUse);
+    if (nameToUse) setCustomerName(nameToUse);
+    setCustomerPhone(phoneToUse);
+    onSaveCrmCustomer?.(nameToUse || 'Guest', phoneToUse);
     window.open(waUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openWhatsAppBillPopup = () => {
+    const selectedTableItems = selectedTableId
+      ? tableCarts[selectedTableId]?.items || []
+      : [];
+    const checkoutItems = currentCart.length > 0 ? currentCart : selectedTableItems;
+    if (checkoutItems.length === 0) {
+      alert('Please add items to the cart first.');
+      return;
+    }
+    setWaBillName((customerName || '').trim());
+    setWaBillPhone((customerPhone || '').trim());
+    setShowWhatsAppBillModal(true);
+  };
+
+  const renderWhatsAppBillModal = () => {
+    if (!showWhatsAppBillModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!waBillPhone.trim()) return;
+            setShowWhatsAppBillModal(false);
+            handleSendWhatsAppBill(waBillPhone.trim(), waBillName.trim());
+          }}
+          className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl space-y-4"
+        >
+          <div className="flex items-center justify-between border-b pb-3">
+            <div>
+              <h3 className="text-lg font-black text-gray-900">Send Bill on WhatsApp</h3>
+              <p className="text-xs text-gray-500 font-bold">Saves customer to CRM & opens wa.me</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowWhatsAppBillModal(false)}
+              className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-black uppercase text-gray-500 mb-1">Customer Name</label>
+              <div className="relative">
+                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={waBillName}
+                  onChange={(e) => setWaBillName(e.target.value)}
+                  placeholder="Enter customer name"
+                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-gray-500 mb-1">Phone Number *</label>
+              <div className="relative">
+                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="tel"
+                  required
+                  autoFocus
+                  value={waBillPhone}
+                  onChange={(e) => setWaBillPhone(e.target.value)}
+                  placeholder="Enter 10-digit WhatsApp number"
+                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full py-3.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+          >
+            <MessageCircle size={18} />
+            SAVE & SEND ON WHATSAPP
+          </button>
+        </form>
+      </div>
+    );
   };
   // Get table item count for badges
   const getTableItemCount = (tableId: string) => {
@@ -1889,38 +1977,17 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
 
                   {currentCart.length > 0 && (
                     <div className="space-y-2.5 w-full mt-4">
-                      <div className="flex gap-2 w-full">
-                        <button
-                          onClick={() => printKOT()}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#4f46e5] hover:bg-indigo-700 text-white py-3.5 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs"
-                        >
-                          <ChefHat size={16} /> PRINT KOT
-                        </button>
-                        <button
-                          onClick={() => printWholeKOT()}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#059669] hover:bg-emerald-700 text-white py-3.5 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs"
-                        >
-                          <CheckCircle size={16} /> KOT CHECK
-                        </button>
-                      </div>
-                      <div className="flex gap-2 w-full">
-                        <button
-                          onClick={() => setShowMobileCheckoutModal(true)}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#262626] hover:bg-black text-white py-3.5 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs"
-                        >
-                          <ShoppingCart size={16} /> CHECKOUT
-                        </button>
-                        <button
-                          onClick={() => handlePlaceOrder(true, false)}
-                          className="flex-1 flex items-center justify-center gap-2 bg-[#F57C00] hover:bg-orange-600 text-white py-3.5 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs"
-                        >
-                          <CheckCircle size={16} /> PRINT BILL
-                        </button>
-                      </div>
                       <button
                         type="button"
-                        onClick={() => handleSendWhatsAppBill()}
-                        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white py-3 rounded-xl font-black transition-all shadow-md active:scale-95 text-xs"
+                        onClick={() => setShowMobileCheckoutModal(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-[#262626] hover:bg-black text-white py-3.5 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs"
+                      >
+                        <ShoppingCart size={16} /> CHECKOUT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openWhatsAppBillPopup}
+                        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white py-3.5 rounded-xl font-black transition-all shadow-md active:scale-95 text-xs"
                       >
                         <MessageCircle size={16} /> SEND BILL ON WHATSAPP
                       </button>
@@ -1943,6 +2010,9 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
             </div>
           )}
         </div>
+
+        {/* WhatsApp Bill Customer Popup */}
+        {renderWhatsAppBillModal()}
 
         {/* Mobile Checkout Modal */}
         {showMobileCheckoutModal && (
@@ -2640,6 +2710,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           </button>
         </div>
       </div>
+      {renderWhatsAppBillModal()}
       {/* Open Item Modal */}
       {openItemModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
