@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, Save, X, Utensils, Tag, Store, Percent, LayoutGrid, RefreshCw, Database, Package } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Save, X, Utensils, Tag, Store, Percent, LayoutGrid, RefreshCw, Database, Package, ArrowLeft } from 'lucide-react';
 import { MenuItem, Category, RestaurantInfo, Table, VegType, Floor } from '../types';
 
 interface MenuManagementProps {
@@ -27,6 +27,7 @@ interface MenuManagementProps {
   onResetMenuDatabase?: () => void;
   onFactoryReset?: () => void;
   onResetBillCounter?: () => void;
+  onBack?: () => void;
 }
 
 const MenuManagement: React.FC<MenuManagementProps> = ({ 
@@ -54,6 +55,7 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
   onResetMenuDatabase,
   onFactoryReset,
   onResetBillCounter,
+  onBack,
 }) => {
   const [activeTab, setActiveTab] = useState<'ITEMS' | 'CATEGORIES' | 'DRINKS' | 'TABLES' | 'TAXES' | 'RESTAURANT' | 'DATABASE'>('ITEMS');
   const [searchTerm, setSearchTerm] = useState('');
@@ -177,9 +179,21 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
   return (
     <div className="h-full bg-gray-50 p-3 sm:p-6 flex flex-col overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-gray-900">Configuration</h1>
-          <p className="text-xs sm:text-sm text-gray-800 font-bold">Manage your menu, categories, and business rules</p>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-black text-xs hover:bg-gray-100 transition-all active:scale-95 shrink-0"
+            >
+              <ArrowLeft size={16} />
+              <span>Tables</span>
+            </button>
+          )}
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900">Configuration</h1>
+            <p className="text-xs sm:text-sm text-gray-800 font-bold">Manage your menu, categories, and business rules</p>
+          </div>
         </div>
         {(activeTab === 'ITEMS' || activeTab === 'CATEGORIES') && (
           <button 

@@ -1666,6 +1666,7 @@ const App: React.FC = () => {
           onResetMenuDatabase={handleResetMenuDatabase}
           onFactoryReset={handleFactoryReset}
           onResetBillCounter={handleResetBillCounter}
+          onBack={() => setMobileShowSettings(false)}
         />
       );
     }
