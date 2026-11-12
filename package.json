@@ -1,9 +1,9 @@
 {
-  "name": "drona-pos",
+  "name": "masala-twist",
   "private": true,
   "version": "1.0.0",
-  "description": "Drona POS - Restaurant Point of Sale System",
-  "author": "Drona",
+  "description": "Masala Twist - Restaurant Point of Sale System",
+  "author": "Masala Twist",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

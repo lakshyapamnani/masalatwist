@@ -18,9 +18,9 @@ export default defineConfig(({ mode }) => {
           registerType: 'autoUpdate',
           includeAssets: ['dronaiconn.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
           manifest: {
-            name: 'Drona POS',
-            short_name: 'DronaPOS',
-            description: 'Point of Sale System for Drona',
+            name: 'Masala Twist',
+            short_name: 'MasalaTwist',
+            description: 'Point of Sale System for Masala Twist',
             theme_color: '#F57C00',
             background_color: '#ffffff',
             display: 'standalone',
