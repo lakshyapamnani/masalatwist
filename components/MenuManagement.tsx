@@ -26,6 +26,7 @@ interface MenuManagementProps {
   onDeleteFloor: (id: string) => void;
   onResetMenuDatabase?: () => void;
   onFactoryReset?: () => void;
+  onResetBillCounter?: () => void;
 }
 
 const MenuManagement: React.FC<MenuManagementProps> = ({ 
@@ -52,6 +53,7 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
   onDeleteFloor,
   onResetMenuDatabase,
   onFactoryReset,
+  onResetBillCounter,
 }) => {
   const [activeTab, setActiveTab] = useState<'ITEMS' | 'CATEGORIES' | 'DRINKS' | 'TABLES' | 'TAXES' | 'RESTAURANT' | 'DATABASE'>('ITEMS');
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,11 +175,11 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
   };
 
   return (
-    <div className="h-full bg-gray-50 p-6 flex flex-col">
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full bg-gray-50 p-3 sm:p-6 flex flex-col overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-2xl font-black text-gray-900">Configuration</h1>
-          <p className="text-sm text-gray-800 font-bold">Manage your menu, categories, and business rules</p>
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900">Configuration</h1>
+          <p className="text-xs sm:text-sm text-gray-800 font-bold">Manage your menu, categories, and business rules</p>
         </div>
         {(activeTab === 'ITEMS' || activeTab === 'CATEGORIES') && (
           <button 
@@ -185,9 +187,9 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
               if (activeTab === 'ITEMS') handleOpenItemModal();
               else if (activeTab === 'CATEGORIES') handleOpenCatModal();
             }}
-            className="flex items-center gap-2 bg-[#F57C00] text-white px-6 py-2.5 rounded-xl font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-200"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#F57C00] text-white px-4 sm:px-6 py-2.5 rounded-xl font-black text-sm hover:bg-orange-600 transition-all shadow-lg shadow-orange-200"
           >
-            <Plus size={20} /> Add New {activeTab === 'ITEMS' ? 'Item' : 'Category'}
+            <Plus size={18} /> Add New {activeTab === 'ITEMS' ? 'Item' : 'Category'}
           </button>
         )}
       </div>
@@ -203,7 +205,7 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
           <TabItem label="Database" active={activeTab === 'DATABASE'} onClick={() => setActiveTab('DATABASE')} icon={<Database size={18} />} />
         </div>
 
-        <div className="p-6 flex-1 flex flex-col overflow-hidden">
+        <div className="p-3 sm:p-6 flex-1 flex flex-col overflow-hidden">
           {activeTab === 'ITEMS' && (
             <>
               <div className="relative mb-6">
@@ -243,7 +245,7 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
                       <p className="text-xs text-gray-800 mb-4 uppercase tracking-tighter font-black">
                         Category: {categories.find(c => c.id === item.categoryId)?.name || 'Unknown'}
                       </p>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button 
                           onClick={() => handleOpenItemModal(item)}
                           className="flex-1 bg-gray-100 text-gray-900 py-2 rounded-lg text-xs font-black hover:bg-gray-200 transition-colors flex items-center justify-center gap-1 border-2 border-gray-300"
@@ -722,23 +724,51 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
 
           {activeTab === 'DATABASE' && (
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
-              <div className="max-w-2xl mx-auto space-y-6 pb-8">
+              <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6 pb-8">
+              {/* Reset Invoice Counter Section */}
+              {onResetBillCounter && (
+                <div className="p-4 sm:p-6 border-2 border-indigo-200 rounded-2xl bg-indigo-50/50 shadow-sm">
+                  <div className="flex flex-col sm:flex-row items-start gap-4">
+                    <div className="p-3 bg-indigo-100 rounded-xl">
+                      <RefreshCw size={24} className="text-indigo-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-1">Reset Invoice Number</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-4">
+                        Reset the sequential bill counter back to 0 so the next invoice starts at <strong>INV-1</strong>.
+                      </p>
+                      <button
+                        onClick={() => {
+                          if (confirm('Reset invoice counter to INV-1?')) {
+                            onResetBillCounter();
+                          }
+                        }}
+                        className="w-full sm:w-auto px-5 py-3 bg-indigo-600 text-white rounded-xl font-black hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg text-sm"
+                      >
+                        <RefreshCw size={18} />
+                        Reset Invoice to INV-1
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Reset Menu Database Section */}
-              <div className="p-8 border-2 border-orange-200 rounded-2xl bg-orange-50/50 shadow-sm">
-                <div className="flex items-start gap-4">
+              <div className="p-4 sm:p-8 border-2 border-orange-200 rounded-2xl bg-orange-50/50 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-start gap-4">
                   <div className="p-3 bg-orange-100 rounded-xl">
                     <RefreshCw size={28} className="text-orange-600" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-black text-gray-900 mb-2">Reset Menu Database</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      This will clear all existing menu items and categories from Firebase database and replace them with the new menu defined in the app. Use this to sync the latest menu with all connected devices.
+                    <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-2">Reset Menu Database</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 mb-4">
+                      This will clear all existing menu items and categories from Firebase database and replace them with the Masala Twist menu defined in the app.
                     </p>
-                    <div className="bg-white p-4 rounded-xl border mb-4">
-                      <h4 className="font-bold text-gray-900 mb-2">New Menu Summary:</h4>
-                      <ul className="text-sm text-gray-600 space-y-1">
-                        <li>• <strong>26 Categories:</strong> Gavathi Lapeta, Agri Handi, Oriental Main Course, Chinese, Sindhi Specialities, Seafood, Tandoori, Biryani, and more.</li>
-                        <li>• <strong>140+ Menu Items</strong> including portions (Half/Full), multi-type (Veg/Non-Veg/Seafood), and APS support.</li>
+                    <div className="bg-white p-3 sm:p-4 rounded-xl border mb-4">
+                      <h4 className="font-bold text-gray-900 mb-2 text-sm">Masala Twist Menu Summary:</h4>
+                      <ul className="text-xs sm:text-sm text-gray-600 space-y-1">
+                        <li>• <strong>16 Categories:</strong> Chinese, Chicken &amp; Paneer Tubs, Loaded Fries, Veg &amp; Chicken Momos, Cold Coffee, Mojito &amp; Shakes.</li>
+                        <li>• <strong>Half/Full &amp; Variant Popups:</strong> Portion and size popups built-in.</li>
                       </ul>
                     </div>
                     <button
@@ -747,7 +777,7 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
                           onResetMenuDatabase?.();
                         }
                       }}
-                      className="px-6 py-3 bg-orange-500 text-white rounded-xl font-black hover:bg-orange-600 transition-all flex items-center gap-2 shadow-lg"
+                      className="w-full sm:w-auto px-6 py-3 bg-orange-500 text-white rounded-xl font-black hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg text-sm"
                     >
                       <Database size={20} />
                       Reset & Sync New Menu
@@ -1281,7 +1311,7 @@ const MenuManagement: React.FC<MenuManagementProps> = ({
 const TabItem: React.FC<{ label: string; active: boolean; onClick: () => void; icon: React.ReactNode }> = ({ label, active, onClick, icon }) => (
   <button 
     onClick={onClick}
-    className={`flex items-center gap-2 px-6 py-4 font-black text-sm transition-all border-b-4 shrink-0 ${
+    className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-6 py-3 sm:py-4 font-black text-xs sm:text-sm transition-all border-b-4 shrink-0 ${
       active ? 'border-[#F57C00] text-[#F57C00] bg-white' : 'border-transparent text-gray-800 hover:text-gray-900 hover:bg-gray-100'
     }`}
   >
