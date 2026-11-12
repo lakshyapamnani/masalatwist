@@ -176,11 +176,11 @@ const ItemOptionsPopup: React.FC<ItemOptionsPopupProps> = ({ item, onConfirm, on
           </div>
         )}
 
-        {/* ML Size Choice - for drinks with multiple sizes */}
+        {/* ML Size / Variant Choice */}
         {hasMlPrices && (
           <div className="mb-5">
-            <label className="block text-xs font-black text-gray-500 mb-2 uppercase">Choose Size *</label>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="block text-xs font-black text-gray-500 mb-2 uppercase">Choose Variant / Size *</label>
+            <div className={`grid ${mlEntries.length >= 4 ? 'grid-cols-2' : 'grid-cols-3'} gap-2 max-h-60 overflow-y-auto`}>
               {mlEntries.map(([size, price]) => (
                 <button
                   key={size}
