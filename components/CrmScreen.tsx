@@ -101,11 +101,10 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
             <button
               type="button"
               onClick={handleSaveOffer}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                offerSaved
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${offerSaved
                   ? 'bg-green-600 text-white'
                   : 'bg-[#F57C00] hover:bg-orange-600 text-white'
-              }`}
+                }`}
             >
               <Check size={14} />
               {offerSaved ? 'Saved' : 'Save Offer'}
@@ -271,11 +270,10 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
                       onClick={(e) => {
                         if (!waOfferUrl) e.preventDefault();
                       }}
-                      className={`w-full py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                        waOfferUrl
+                      className={`w-full py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${waOfferUrl
                           ? 'bg-[#25D366] hover:bg-[#1ebe5d] text-white shadow-sm'
                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       <MessageCircle size={15} />
                       Send Global Offer
