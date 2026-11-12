@@ -8,6 +8,7 @@ interface CrmScreenProps {
   offerMessage: string;
   onSaveOfferMessage: (message: string) => void;
   onSaveCustomer: (name: string, phone: string) => void;
+  onUpdateCustomerMessage?: (customerId: string, customMessage: string) => void;
   variant?: 'desktop' | 'mobile';
 }
 
@@ -16,6 +17,7 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
   offerMessage,
   onSaveOfferMessage,
   onSaveCustomer,
+  onUpdateCustomerMessage,
   variant = 'desktop',
 }) => {
   const [offerDraft, setOfferDraft] = useState(offerMessage);
@@ -24,6 +26,7 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [customMessageDrafts, setCustomMessageDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setOfferDraft(offerMessage);
@@ -173,7 +176,15 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
             {sortedCustomers.map((customer) => {
               const waDirectUrl = buildWaMeUrl(customer.phone);
               const waOfferUrl = buildWaMeUrl(customer.phone, offerDraft);
+              const personalMsg =
+                customMessageDrafts[customer.id] !== undefined
+                  ? customMessageDrafts[customer.id]
+                  : (customer.customMessage || '');
+              const waPersonalUrl = personalMsg.trim()
+                ? buildWaMeUrl(customer.phone, personalMsg)
+                : '';
               const formattedPhone = formatWhatsAppPhone(customer.phone);
+              const visits = customer.totalOrders || 1;
 
               return (
                 <div
@@ -196,11 +207,9 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
                           </div>
                         </div>
                       </div>
-                      {customer.totalOrders ? (
-                        <span className="text-[10px] font-black bg-orange-50 text-[#F57C00] px-2 py-1 rounded-full shrink-0">
-                          {customer.totalOrders} {customer.totalOrders === 1 ? 'Order' : 'Orders'}
-                        </span>
-                      ) : null}
+                      <span className="text-[10px] font-black bg-orange-50 text-[#F57C00] px-2.5 py-1 rounded-full shrink-0">
+                        {visits} {visits === 1 ? 'Visit' : 'Visits'}
+                      </span>
                     </div>
 
                     {waDirectUrl && (
@@ -208,30 +217,70 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
                         href={waDirectUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline break-all"
+                        className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline break-all"
                       >
                         <ExternalLink size={11} />
                         wa.me/{formattedPhone}
                       </a>
                     )}
+
+                    <div className="mt-3">
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                        Personalised Return Message
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={personalMsg}
+                        onChange={(e) =>
+                          setCustomMessageDrafts((prev) => ({
+                            ...prev,
+                            [customer.id]: e.target.value,
+                          }))
+                        }
+                        onBlur={() => {
+                          if (customMessageDrafts[customer.id] !== undefined) {
+                            onUpdateCustomerMessage?.(customer.id, customMessageDrafts[customer.id]);
+                          }
+                        }}
+                        placeholder={`e.g. Hi ${customer.name || 'Guest'}, we miss you at Masala Twist! Show this for 10% off...`}
+                        className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#F57C00] focus:bg-white resize-y"
+                      />
+                    </div>
                   </div>
 
-                  <a
-                    href={waOfferUrl || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      if (!waOfferUrl) e.preventDefault();
-                    }}
-                    className={`w-full py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                      waOfferUrl
-                        ? 'bg-[#25D366] hover:bg-[#1ebe5d] text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <MessageCircle size={15} />
-                    Send WhatsApp Offer
-                  </a>
+                  <div className="flex flex-col gap-2">
+                    {personalMsg.trim() && (
+                      <a
+                        href={waPersonalUrl || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => {
+                          if (!waPersonalUrl) e.preventDefault();
+                          else onUpdateCustomerMessage?.(customer.id, personalMsg);
+                        }}
+                        className="w-full py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 bg-[#F57C00] hover:bg-orange-600 text-white shadow-sm"
+                      >
+                        <MessageCircle size={15} />
+                        Send Personalised Message
+                      </a>
+                    )}
+                    <a
+                      href={waOfferUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (!waOfferUrl) e.preventDefault();
+                      }}
+                      className={`w-full py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                        waOfferUrl
+                          ? 'bg-[#25D366] hover:bg-[#1ebe5d] text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <MessageCircle size={15} />
+                      Send Global Offer
+                    </a>
+                  </div>
                 </div>
               );
             })}
@@ -243,3 +292,4 @@ const CrmScreen: React.FC<CrmScreenProps> = ({
 };
 
 export default CrmScreen;
+

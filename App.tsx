@@ -673,7 +673,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleUpsertCrmCustomer = async (name: string, phone: string) => {
+  const handleUpsertCrmCustomer = async (name: string, phone: string, incrementVisit = true) => {
     const cleanPhone = (phone || '').trim();
     if (!cleanPhone) return;
     const digits = cleanPhone.replace(/\D/g, '');
@@ -687,8 +687,11 @@ const App: React.FC = () => {
       name: (name || '').trim() || existing?.name || 'Guest',
       phone: cleanPhone,
       lastOrderAt: now,
-      totalOrders: (existing?.totalOrders || 0) + 1,
+      totalOrders: incrementVisit
+        ? (existing?.totalOrders || 0) + 1
+        : (existing?.totalOrders || 1),
       createdAt: existing?.createdAt || now,
+      ...(existing?.customMessage ? { customMessage: existing.customMessage } : {}),
     };
 
     setCrmCustomers((prev) => {
@@ -701,6 +704,19 @@ const App: React.FC = () => {
       await set(ref(db, userPath(`crm_customers/${id}`)), record);
     } catch (error) {
       console.error('Failed to save CRM customer:', error);
+    }
+  };
+
+  const handleUpdateCrmCustomerMessage = async (customerId: string, customMessage: string) => {
+    setCrmCustomers((prev) => {
+      const next = prev.map((c) => (c.id === customerId ? { ...c, customMessage } : c));
+      localStorage.setItem('drona_crm_customers', JSON.stringify(next));
+      return next;
+    });
+    try {
+      await set(ref(db, userPath(`crm_customers/${customerId}/customMessage`)), customMessage);
+    } catch (error) {
+      console.error('Failed to save customer personalised message:', error);
     }
   };
 
@@ -1498,6 +1514,7 @@ const App: React.FC = () => {
             onUpdateTableStatus={handleUpdateTableStatus}
             onUpdateSingleTableCart={handleUpdateSingleTableCart}
             onSaveCrmCustomer={handleUpsertCrmCustomer}
+            crmCustomers={crmCustomers}
             billCounter={billCounter}
             variant="desktop"
             selectedTableId={selectedTableId}
@@ -1569,6 +1586,7 @@ const App: React.FC = () => {
             offerMessage={crmOfferMessage}
             onSaveOfferMessage={handleSaveCrmOfferMessage}
             onSaveCustomer={handleUpsertCrmCustomer}
+            onUpdateCustomerMessage={handleUpdateCrmCustomerMessage}
             variant="desktop"
           />
         );
@@ -1635,6 +1653,7 @@ const App: React.FC = () => {
         crmCustomers={crmCustomers}
         crmOfferMessage={crmOfferMessage}
         onSaveCrmOfferMessage={handleSaveCrmOfferMessage}
+        onUpdateCrmCustomerMessage={handleUpdateCrmCustomerMessage}
         billCounter={billCounter}
         variant="mobile"
       />

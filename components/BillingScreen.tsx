@@ -281,10 +281,11 @@ interface BillingScreenProps {
   onCreateOrder: (order: Order) => Promise<void>;
   onUpdateTableStatus: (tableId: string, status: Table['status'], currentOrderId?: string) => void;
   onUpdateSingleTableCart: (tableId: string, cart: { items: any[]; customerName: string; customerPhone?: string }) => void;
-  onSaveCrmCustomer?: (name: string, phone: string) => void;
+  onSaveCrmCustomer?: (name: string, phone: string, incrementVisit?: boolean) => void;
   crmCustomers?: CrmCustomer[];
   crmOfferMessage?: string;
   onSaveCrmOfferMessage?: (message: string) => void;
+  onUpdateCustomerMessage?: (customerId: string, customMessage: string) => void;
   selectedTableId?: string | null;
   onBackToTables?: () => void;
   variant?: 'desktop' | 'mobile';
@@ -307,6 +308,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   crmCustomers = [],
   crmOfferMessage = '',
   onSaveCrmOfferMessage,
+  onUpdateCustomerMessage,
   selectedTableId: selectedTableIdProp = null,
   onBackToTables,
   variant = 'desktop',
@@ -1352,7 +1354,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
     const newOrder: Order = {
       id: Math.random().toString(36).substr(2, 9),
       billNo: `INV-${billCounter + 1}`, // Sequential preview number
-      customerName: (customerName || "").trim() || "Guest",
+      customerName: (customerName || "").trim() || findCrmCustomerByPhone(customerPhone)?.name || "Guest",
       customerPhone: (customerPhone || "").trim() || undefined,
       tableId: effectiveOrderType === 'DINE_IN' && selectedTableId ? selectedTableId : "",
       tableName: effectiveOrderType === 'DINE_IN' && selectedTable ? selectedTable.name : "",
@@ -1414,6 +1416,16 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
     }
   };
 
+  const findCrmCustomerByPhone = (phone: string): CrmCustomer | undefined => {
+    const digits = (phone || '').replace(/\D/g, '');
+    if (digits.length < 10) return undefined;
+    const key = digits.slice(-10);
+    return crmCustomers.find((c) => {
+      const cDigits = (c.phone || '').replace(/\D/g, '');
+      return c.id === key || (cDigits.length >= 10 && cDigits.slice(-10) === key);
+    });
+  };
+
   const handleSendWhatsAppBill = (phoneOverride?: string, nameOverride?: string) => {
     const selectedTableItems = selectedTableId
       ? tableCarts[selectedTableId]?.items || []
@@ -1425,7 +1437,8 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
     }
 
     const phoneToUse = (phoneOverride ?? customerPhone ?? '').trim();
-    const nameToUse = (nameOverride ?? customerName ?? '').trim();
+    const matchedCustomer = findCrmCustomerByPhone(phoneToUse);
+    const nameToUse = (nameOverride ?? customerName ?? '').trim() || matchedCustomer?.name || '';
     if (!phoneToUse) {
       setWaBillName(nameToUse);
       setWaBillPhone('');
@@ -1466,7 +1479,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
 
     if (nameToUse) setCustomerName(nameToUse);
     setCustomerPhone(phoneToUse);
-    onSaveCrmCustomer?.(nameToUse || 'Guest', phoneToUse);
+    onSaveCrmCustomer?.(nameToUse || 'Guest', phoneToUse, !matchedCustomer);
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -1486,14 +1499,16 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
 
   const renderWhatsAppBillModal = () => {
     if (!showWhatsAppBillModal) return null;
+    const matchedWaCustomer = findCrmCustomerByPhone(waBillPhone);
     return (
       <div className="fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             if (!waBillPhone.trim()) return;
+            const resolvedName = waBillName.trim() || matchedWaCustomer?.name || '';
             setShowWhatsAppBillModal(false);
-            handleSendWhatsAppBill(waBillPhone.trim(), waBillName.trim());
+            handleSendWhatsAppBill(waBillPhone.trim(), resolvedName);
           }}
           className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl space-y-4"
         >
@@ -1512,19 +1527,6 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           </div>
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-black uppercase text-gray-500 mb-1">Customer Name</label>
-              <div className="relative">
-                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={waBillName}
-                  onChange={(e) => setWaBillName(e.target.value)}
-                  placeholder="Enter customer name"
-                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#25D366]"
-                />
-              </div>
-            </div>
-            <div>
               <label className="block text-xs font-black uppercase text-gray-500 mb-1">Phone Number *</label>
               <div className="relative">
                 <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1535,6 +1537,24 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
                   value={waBillPhone}
                   onChange={(e) => setWaBillPhone(e.target.value)}
                   placeholder="Enter 10-digit WhatsApp number"
+                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                />
+              </div>
+              {matchedWaCustomer && (
+                <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Saved in CRM: {matchedWaCustomer.name} ({matchedWaCustomer.totalOrders || 1} {(matchedWaCustomer.totalOrders || 1) === 1 ? 'visit' : 'visits'})
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-black uppercase text-gray-500 mb-1">Customer Name</label>
+              <div className="relative">
+                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={waBillName}
+                  onChange={(e) => setWaBillName(e.target.value)}
+                  placeholder={matchedWaCustomer ? matchedWaCustomer.name : 'Enter customer name'}
                   className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#25D366]"
                 />
               </div>
@@ -2005,6 +2025,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
                 offerMessage={crmOfferMessage}
                 onSaveOfferMessage={onSaveCrmOfferMessage || (() => {})}
                 onSaveCustomer={onSaveCrmCustomer || (() => {})}
+                onUpdateCustomerMessage={onUpdateCustomerMessage}
                 variant="mobile"
               />
             </div>
@@ -2083,7 +2104,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
                       type="text"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Enter customer name"
+                      placeholder={findCrmCustomerByPhone(customerPhone)?.name || "Enter customer name"}
                       className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#F57C00]"
                     />
                   </div>
@@ -2485,7 +2506,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
               type="text" 
-              placeholder="Customer Name / Order Note"
+              placeholder={findCrmCustomerByPhone(customerPhone)?.name || "Customer Name / Order Note"}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-[#F57C00] outline-none"

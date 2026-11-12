@@ -83,6 +83,7 @@ export interface CrmCustomer {
   lastOrderAt?: number;
   totalOrders?: number;
   createdAt?: number;
+  customMessage?: string;
 }
 
 export interface Order {
