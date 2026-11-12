@@ -24,12 +24,16 @@ import {
   Users,
   ArrowLeft,
   Wallet,
-  MessageSquare
+  MessageSquare,
+  Phone,
+  MessageCircle
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { Category, MenuItem, CartItem, OrderType, PaymentMode, Order, RestaurantInfo, Table, Floor } from '../types';
+import { Category, MenuItem, CartItem, OrderType, PaymentMode, Order, RestaurantInfo, Table, Floor, CrmCustomer } from '../types';
 import TablesGrid from './TablesGrid';
+import CrmScreen from './CrmScreen';
 import { calculateOrderTax, calculateOrderTotals } from '../utils/tax';
+import { buildWaMeUrl, buildBillWhatsAppMessage } from '../utils/whatsapp';
 import { db } from '../firebase';
 import { ref, set } from 'firebase/database';
 
@@ -221,6 +225,7 @@ const ItemOptionsPopup: React.FC<ItemOptionsPopupProps> = ({ item, onConfirm, on
 interface TableCart {
   items: CartItem[];
   customerName: string;
+  customerPhone?: string;
 }
 
 const toCartItemsArray = (value: unknown): CartItem[] => {
@@ -235,12 +240,13 @@ const toCartItemsArray = (value: unknown): CartItem[] => {
 
 const normalizeTableCart = (value: unknown): TableCart => {
   if (!value || typeof value !== 'object') {
-    return { items: [], customerName: '' };
+    return { items: [], customerName: '', customerPhone: '' };
   }
-  const cart = value as { items?: unknown; customerName?: unknown };
+  const cart = value as { items?: unknown; customerName?: unknown; customerPhone?: unknown };
   return {
     items: toCartItemsArray(cart.items),
     customerName: typeof cart.customerName === 'string' ? cart.customerName : '',
+    customerPhone: typeof cart.customerPhone === 'string' ? cart.customerPhone : '',
   };
 };
 
@@ -274,7 +280,11 @@ interface BillingScreenProps {
   billCounter: number;
   onCreateOrder: (order: Order) => Promise<void>;
   onUpdateTableStatus: (tableId: string, status: Table['status'], currentOrderId?: string) => void;
-  onUpdateSingleTableCart: (tableId: string, cart: { items: any[]; customerName: string }) => void;
+  onUpdateSingleTableCart: (tableId: string, cart: { items: any[]; customerName: string; customerPhone?: string }) => void;
+  onSaveCrmCustomer?: (name: string, phone: string) => void;
+  crmCustomers?: CrmCustomer[];
+  crmOfferMessage?: string;
+  onSaveCrmOfferMessage?: (message: string) => void;
   selectedTableId?: string | null;
   onBackToTables?: () => void;
   variant?: 'desktop' | 'mobile';
@@ -293,6 +303,10 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   onCreateOrder,
   onUpdateTableStatus,
   onUpdateSingleTableCart,
+  onSaveCrmCustomer,
+  crmCustomers = [],
+  crmOfferMessage = '',
+  onSaveCrmOfferMessage,
   selectedTableId: selectedTableIdProp = null,
   onBackToTables,
   variant = 'desktop',
@@ -304,7 +318,8 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   const [optionsItem, setOptionsItem] = useState<MenuItem | null>(null);
   const [menuType, setMenuType] = useState<'FOOD' | 'DRINK'>('FOOD');
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
-  const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill'>('tables');
+  const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill' | 'crm'>('tables');
+  const [showMobileCheckoutModal, setShowMobileCheckoutModal] = useState(false);
   const [isCategoryCollapsed, setIsCategoryCollapsed] = useState(false);
   const mobileTablesContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileCategoriesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -398,6 +413,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   // Get current cart based on selected table or default cart for non-dine-in
   const [defaultCart, setDefaultCart] = useState<CartItem[]>([]);
   const [defaultCustomerName, setDefaultCustomerName] = useState('');
+  const [defaultCustomerPhone, setDefaultCustomerPhone] = useState('');
 
   // Helper to update table carts - writes only the specific table's cart
   const updateTableCart = (tableId: string, updater: (current: TableCart) => TableCart) => {
@@ -420,6 +436,13 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
     return defaultCustomerName;
   }, [orderType, selectedTableId, tableCarts, defaultCustomerName]);
 
+  const customerPhone = useMemo(() => {
+    if (orderType === 'DINE_IN' && selectedTableId) {
+      return normalizeTableCart(tableCarts[selectedTableId]).customerPhone || '';
+    }
+    return defaultCustomerPhone;
+  }, [orderType, selectedTableId, tableCarts, defaultCustomerPhone]);
+
   const setCustomerName = (name: string) => {
     if (orderType === 'DINE_IN' && selectedTableId) {
       updateTableCart(selectedTableId, (cart) => ({
@@ -428,6 +451,17 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       }));
     } else {
       setDefaultCustomerName(name);
+    }
+  };
+
+  const setCustomerPhone = (phone: string) => {
+    if (orderType === 'DINE_IN' && selectedTableId) {
+      updateTableCart(selectedTableId, (cart) => ({
+        ...cart,
+        customerPhone: phone
+      }));
+    } else {
+      setDefaultCustomerPhone(phone);
     }
   };
 
@@ -1316,6 +1350,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       id: Math.random().toString(36).substr(2, 9),
       billNo: `INV-${billCounter + 1}`, // Sequential preview number
       customerName: (customerName || "").trim() || "Guest",
+      customerPhone: (customerPhone || "").trim() || undefined,
       tableId: effectiveOrderType === 'DINE_IN' && selectedTableId ? selectedTableId : "",
       tableName: effectiveOrderType === 'DINE_IN' && selectedTable ? selectedTable.name : "",
       date: dateStr,
@@ -1336,6 +1371,10 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       console.log("Finalizing order:", newOrder);
       await onCreateOrder(newOrder);
       console.log("onCreateOrder completed, real billNo:", newOrder.billNo);
+
+      if ((customerPhone || "").trim()) {
+        onSaveCrmCustomer?.(newOrder.customerName || "Guest", customerPhone.trim());
+      }
       
       // Clear active QR code in Firebase to return customer display to standby
       try {
@@ -1353,7 +1392,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
 
     // Checkout finalizes the order, clears cart context, and returns to tables.
     if (selectedTableId && (orderType === 'DINE_IN' || (selectedTableId && toCartItemsArray(tableCarts[selectedTableId]?.items).length > 0))) {
-      updateTableCart(selectedTableId, () => ({ items: [], customerName: '' }));
+      updateTableCart(selectedTableId, () => ({ items: [], customerName: '', customerPhone: '' }));
       onUpdateTableStatus(selectedTableId, 'AVAILABLE');
       setSelectedTableId(null);
       if (variant === 'desktop') {
@@ -1364,11 +1403,65 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
     } else {
       setDefaultCart([]);
       setDefaultCustomerName('');
+      setDefaultCustomerPhone('');
       setSelectedTableId(null);
       if (variant === 'mobile') {
         setMobileTab('menu');
       }
     }
+  };
+
+  const handleSendWhatsAppBill = (phoneOverride?: string) => {
+    const selectedTableItems = selectedTableId
+      ? tableCarts[selectedTableId]?.items || []
+      : [];
+    const checkoutItems = currentCart.length > 0 ? currentCart : selectedTableItems;
+    if (checkoutItems.length === 0) {
+      alert('Please add items to the cart first.');
+      return;
+    }
+
+    let phoneToUse = (phoneOverride ?? customerPhone ?? '').trim();
+    if (!phoneToUse) {
+      const prompted = window.prompt('Enter customer WhatsApp number:');
+      if (!prompted || !prompted.trim()) return;
+      phoneToUse = prompted.trim();
+      setCustomerPhone(phoneToUse);
+    }
+
+    const checkoutTotals = calculateOrderTotals(
+      checkoutItems,
+      categories,
+      taxRate,
+      drinkTaxRate,
+      discountType,
+      discountValue
+    );
+    const selectedTable = tables.find(t => t.id === selectedTableId);
+    const effectiveOrderType: OrderType =
+      selectedTableId && selectedTableItems.length > 0 ? 'DINE_IN' : orderType;
+
+    const msg = buildBillWhatsAppMessage({
+      billNo: `INV-${billCounter + 1}`,
+      tableName: effectiveOrderType === 'DINE_IN' && selectedTable ? selectedTable.name : undefined,
+      orderType: effectiveOrderType,
+      customerName: (customerName || '').trim() || undefined,
+      items: checkoutItems,
+      subtotal: checkoutTotals.subtotal,
+      tax: checkoutTotals.tax,
+      discountAmount: checkoutTotals.discountAmount,
+      total: checkoutTotals.total,
+      paymentMode,
+    });
+
+    const waUrl = buildWaMeUrl(phoneToUse, msg);
+    if (!waUrl) {
+      alert('Please enter a valid phone number.');
+      return;
+    }
+
+    onSaveCrmCustomer?.((customerName || '').trim() || 'Guest', phoneToUse);
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
   // Get table item count for badges
   const getTableItemCount = (tableId: string) => {
@@ -1812,7 +1905,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
                       </div>
                       <div className="flex gap-2 w-full">
                         <button
-                          onClick={() => handlePlaceOrder(false, true)}
+                          onClick={() => setShowMobileCheckoutModal(true)}
                           className="flex-1 flex items-center justify-center gap-2 bg-[#262626] hover:bg-black text-white py-3.5 rounded-xl font-black transition-all shadow-lg active:scale-95 text-xs"
                         >
                           <ShoppingCart size={16} /> CHECKOUT
@@ -1824,13 +1917,152 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
                           <CheckCircle size={16} /> PRINT BILL
                         </button>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSendWhatsAppBill()}
+                        className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white py-3 rounded-xl font-black transition-all shadow-md active:scale-95 text-xs"
+                      >
+                        <MessageCircle size={16} /> SEND BILL ON WHATSAPP
+                      </button>
                     </div>
                   )}
                 </div>
               )}
             </div>
           )}
+
+          {mobileTab === 'crm' && (
+            <div className="h-full overflow-hidden">
+              <CrmScreen
+                customers={crmCustomers}
+                offerMessage={crmOfferMessage}
+                onSaveOfferMessage={onSaveCrmOfferMessage || (() => {})}
+                onSaveCustomer={onSaveCrmCustomer || (() => {})}
+                variant="mobile"
+              />
+            </div>
+          )}
         </div>
+
+        {/* Mobile Checkout Modal */}
+        {showMobileCheckoutModal && (
+          <div className="fixed inset-0 bg-black/60 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Checkout</h3>
+                  <p className="text-xs text-gray-500 font-bold">Total: ₹{total.toFixed(0)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileCheckoutModal(false)}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-gray-500 mb-2">Payment Method</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('CASH')}
+                    className={`py-3 rounded-xl font-black text-xs flex flex-col items-center gap-1 border-2 transition-all ${
+                      paymentMode === 'CASH'
+                        ? 'bg-[#F57C00] text-white border-[#F57C00] shadow-md'
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    <Banknote size={18} />
+                    CASH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('CARD')}
+                    className={`py-3 rounded-xl font-black text-xs flex flex-col items-center gap-1 border-2 transition-all ${
+                      paymentMode === 'CARD'
+                        ? 'bg-[#F57C00] text-white border-[#F57C00] shadow-md'
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    <CreditCard size={18} />
+                    CARD
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('UPI')}
+                    className={`py-3 rounded-xl font-black text-xs flex flex-col items-center gap-1 border-2 transition-all ${
+                      paymentMode === 'UPI'
+                        ? 'bg-[#F57C00] text-white border-[#F57C00] shadow-md'
+                        : 'bg-gray-50 text-gray-700 border-gray-200'
+                    }`}
+                  >
+                    <Smartphone size={18} />
+                    UPI
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-black uppercase text-gray-500 mb-1">Customer Name</label>
+                  <div className="relative">
+                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Enter customer name"
+                      className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#F57C00]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase text-gray-500 mb-1">Phone Number (CRM / WhatsApp)</label>
+                  <div className="relative">
+                    <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Enter 10-digit phone number"
+                      className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#F57C00]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowMobileCheckoutModal(false);
+                    await handlePlaceOrder(false, true);
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-[#262626] hover:bg-black text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <CheckCircle size={18} />
+                  COMPLETE CHECKOUT ({paymentMode})
+                </button>
+                {customerPhone.trim() && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      handleSendWhatsAppBill(customerPhone);
+                      setShowMobileCheckoutModal(false);
+                      await handlePlaceOrder(false, true);
+                    }}
+                    className="w-full py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-white font-black text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                    <MessageCircle size={16} />
+                    CHECKOUT & SEND BILL ON WHATSAPP
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           type="button"
@@ -1868,6 +2100,15 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           >
             <ShoppingCart size={18} />
             <span className="text-[10px]">Bill</span>
+          </button>
+          <button
+            onClick={() => setMobileTab('crm')}
+            className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
+              mobileTab === 'crm' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
+            }`}
+          >
+            <Users size={18} />
+            <span className="text-[10px]">CRM</span>
           </button>
         </div>
       </div>
@@ -2169,7 +2410,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           </div>
         </div>
 
-        <div className="p-4 border-b bg-white">
+        <div className="p-4 border-b bg-white space-y-2">
           <div className="relative">
             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
@@ -2177,6 +2418,16 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
               placeholder="Customer Name / Order Note"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-[#F57C00] outline-none"
+            />
+          </div>
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="tel" 
+              placeholder="Phone Number (WhatsApp / CRM)"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-[#F57C00] outline-none"
             />
           </div>
@@ -2379,6 +2630,14 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
               <span className="text-[9px] uppercase tracking-tighter">Print Bill</span>
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => handleSendWhatsAppBill()}
+            className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white py-2.5 px-3 rounded-xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-xs uppercase tracking-wider shadow-sm"
+          >
+            <MessageCircle size={16} />
+            Send Bill via WhatsApp (wa.me)
+          </button>
         </div>
       </div>
       {/* Open Item Modal */}

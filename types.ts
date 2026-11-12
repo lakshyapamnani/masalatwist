@@ -73,12 +73,23 @@ export interface CartItem extends MenuItem {
 export interface TableCart {
   items: CartItem[];
   customerName: string;
+  customerPhone?: string;
+}
+
+export interface CrmCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  lastOrderAt?: number;
+  totalOrders?: number;
+  createdAt?: number;
 }
 
 export interface Order {
   id: string;
   billNo: string;
   customerName?: string;
+  customerPhone?: string;
   tableId?: string;
   tableName?: string;
   date: string;

@@ -23,7 +23,8 @@ import {
   ClipboardList,
   PieChart,
   LayoutGrid,
-  TrendingUp
+  TrendingUp,
+  Users
 } from 'lucide-react';
 import {
   MenuItem,
@@ -32,7 +33,8 @@ import {
   OrderStatus,
   RestaurantInfo,
   Table,
-  Floor
+  Floor,
+  CrmCustomer
 } from './types';
 import {
   INITIAL_CATEGORIES,
@@ -48,6 +50,7 @@ import Reports from './components/Reports';
 import MenuManagement from './components/MenuManagement';
 import TablesGrid from './components/TablesGrid';
 import MobileQrPage from './components/MobileQrPage';
+import CrmScreen from './components/CrmScreen';
 
 // Firebase imports
 import { isOrderInCurrentBusinessDay } from './utils/businessDay';
@@ -65,7 +68,8 @@ type ActiveScreen =
   | 'CANCELLED_ORDERS'
   | 'REPORTS'
   | 'MENU_CONFIG'
-  | 'ALL_ORDERS';
+  | 'ALL_ORDERS'
+  | 'CRM';
 
 const ONBOARDING_STEPS = [
   {
@@ -154,6 +158,16 @@ const App: React.FC = () => {
   const [restaurantInfo, setRestaurantInfo] = useState<RestaurantInfo>(() => {
     const saved = localStorage.getItem('drona_restaurant_info');
     return saved ? JSON.parse(saved) : INITIAL_RESTAURANT_INFO;
+  });
+  const [crmCustomers, setCrmCustomers] = useState<CrmCustomer[]>(() => {
+    const saved = localStorage.getItem('drona_crm_customers');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [crmOfferMessage, setCrmOfferMessage] = useState<string>(() => {
+    return (
+      localStorage.getItem('drona_crm_offer_message') ||
+      'Hello! Thank you for ordering from Masala Twist. Enjoy a special offer on your next visit!'
+    );
   });
 
   const buildRecordById = (items: Array<{ id: string }>) => {
@@ -569,6 +583,24 @@ const App: React.FC = () => {
         if (data.lastNewDayAt !== undefined) {
           setLastNewDayAt(data.lastNewDayAt || null);
         }
+        if (data.crmOfferMessage !== undefined) {
+          setCrmOfferMessage(data.crmOfferMessage);
+          localStorage.setItem('drona_crm_offer_message', data.crmOfferMessage);
+        }
+      }
+    });
+
+    // CRM Customers Sync
+    const crmRef = ref(db, userPath('crm_customers'));
+    const unsubscribeCrm = onValue(crmRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data && typeof data === 'object') {
+        const list = Object.values(data) as CrmCustomer[];
+        setCrmCustomers(list);
+        localStorage.setItem('drona_crm_customers', JSON.stringify(list));
+      } else {
+        setCrmCustomers([]);
+        localStorage.setItem('drona_crm_customers', JSON.stringify([]));
       }
     });
 
@@ -633,12 +665,54 @@ const App: React.FC = () => {
     return () => {
       unsubscribeOrders();
       unsubscribeSettings();
+      unsubscribeCrm();
       unsubscribeTables();
       unsubscribeFloors();
       unsubscribeTableCarts();
       unsubscribeBillCounter();
     };
   }, []);
+
+  const handleUpsertCrmCustomer = async (name: string, phone: string) => {
+    const cleanPhone = (phone || '').trim();
+    if (!cleanPhone) return;
+    const digits = cleanPhone.replace(/\D/g, '');
+    const id = digits.length >= 10 ? digits.slice(-10) : (digits || cleanPhone.replace(/[.#$[\]/]/g, '_'));
+    if (!id) return;
+
+    const existing = crmCustomers.find((c) => c.id === id);
+    const now = Date.now();
+    const record: CrmCustomer = {
+      id,
+      name: (name || '').trim() || existing?.name || 'Guest',
+      phone: cleanPhone,
+      lastOrderAt: now,
+      totalOrders: (existing?.totalOrders || 0) + 1,
+      createdAt: existing?.createdAt || now,
+    };
+
+    setCrmCustomers((prev) => {
+      const next = [...prev.filter((c) => c.id !== id), record];
+      localStorage.setItem('drona_crm_customers', JSON.stringify(next));
+      return next;
+    });
+
+    try {
+      await set(ref(db, userPath(`crm_customers/${id}`)), record);
+    } catch (error) {
+      console.error('Failed to save CRM customer:', error);
+    }
+  };
+
+  const handleSaveCrmOfferMessage = async (message: string) => {
+    setCrmOfferMessage(message);
+    localStorage.setItem('drona_crm_offer_message', message);
+    try {
+      await set(ref(db, userPath('settings/crmOfferMessage')), message);
+    } catch (error) {
+      console.error('Failed to save CRM offer message:', error);
+    }
+  };
 
   const handleCreateOrder = async (order: Order) => {
     console.log("Creating order:", order);
@@ -1423,6 +1497,7 @@ const App: React.FC = () => {
             onCreateOrder={handleCreateOrder}
             onUpdateTableStatus={handleUpdateTableStatus}
             onUpdateSingleTableCart={handleUpdateSingleTableCart}
+            onSaveCrmCustomer={handleUpsertCrmCustomer}
             billCounter={billCounter}
             variant="desktop"
             selectedTableId={selectedTableId}
@@ -1487,6 +1562,16 @@ const App: React.FC = () => {
         );
       case 'REPORTS':
         return <Reports orders={orders} onStartNewDay={handleStartNewDay} />;
+      case 'CRM':
+        return (
+          <CrmScreen
+            customers={crmCustomers}
+            offerMessage={crmOfferMessage}
+            onSaveOfferMessage={handleSaveCrmOfferMessage}
+            onSaveCustomer={handleUpsertCrmCustomer}
+            variant="desktop"
+          />
+        );
       case 'MENU_CONFIG':
         return (
           <MenuManagement
@@ -1546,6 +1631,10 @@ const App: React.FC = () => {
         onCreateOrder={handleCreateOrder}
         onUpdateTableStatus={handleUpdateTableStatus}
         onUpdateSingleTableCart={handleUpdateSingleTableCart}
+        onSaveCrmCustomer={handleUpsertCrmCustomer}
+        crmCustomers={crmCustomers}
+        crmOfferMessage={crmOfferMessage}
+        onSaveCrmOfferMessage={handleSaveCrmOfferMessage}
         billCounter={billCounter}
         variant="mobile"
       />
@@ -1697,6 +1786,12 @@ const App: React.FC = () => {
 
           <div className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Business</div>
           <SidebarItem
+            icon={<Users size={20} />}
+            label="CRM"
+            active={activeScreen === 'CRM'}
+            onClick={() => { setActiveScreen('CRM'); setIsSidebarOpen(false); }}
+          />
+          <SidebarItem
             icon={<FileSpreadsheet size={20} />}
             label="Reports"
             active={activeScreen === 'REPORTS'}
@@ -1736,6 +1831,16 @@ const App: React.FC = () => {
               >
                 <Receipt size={16} />
                 <span>Tables</span>
+              </button>
+              <button
+                onClick={() => setActiveScreen('CRM')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-black text-sm transition-all ${activeScreen === 'CRM'
+                    ? 'bg-[#F57C00] text-white shadow-lg shadow-orange-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-orange-50 hover:text-[#F57C00]'
+                  }`}
+              >
+                <Users size={16} />
+                <span>CRM</span>
               </button>
               <div className="h-6 w-px bg-gray-200 mx-1"></div>
               <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full border">
