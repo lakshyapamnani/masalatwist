@@ -26,12 +26,14 @@ import {
   Wallet,
   MessageSquare,
   Phone,
-  MessageCircle
+  MessageCircle,
+  Receipt
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { Category, MenuItem, CartItem, OrderType, PaymentMode, Order, RestaurantInfo, Table, Floor, CrmCustomer } from '../types';
+import { Category, MenuItem, CartItem, OrderType, PaymentMode, Order, OrderStatus, RestaurantInfo, Table, Floor, CrmCustomer } from '../types';
 import TablesGrid from './TablesGrid';
 import CrmScreen from './CrmScreen';
+import OrdersList from './OrdersList';
 import { calculateOrderTax, calculateOrderTotals } from '../utils/tax';
 import { buildWaMeUrl, buildBillWhatsAppMessage } from '../utils/whatsapp';
 import { db } from '../firebase';
@@ -286,6 +288,9 @@ interface BillingScreenProps {
   crmOfferMessage?: string;
   onSaveCrmOfferMessage?: (message: string) => void;
   onUpdateCustomerMessage?: (customerId: string, customMessage: string) => void;
+  orders?: Order[];
+  onUpdateOrderStatus?: (id: string, status: OrderStatus) => void;
+  onDeleteOrder?: (id: string) => void;
   selectedTableId?: string | null;
   onBackToTables?: () => void;
   variant?: 'desktop' | 'mobile';
@@ -309,6 +314,9 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   crmOfferMessage = '',
   onSaveCrmOfferMessage,
   onUpdateCustomerMessage,
+  orders = [],
+  onUpdateOrderStatus,
+  onDeleteOrder,
   selectedTableId: selectedTableIdProp = null,
   onBackToTables,
   variant = 'desktop',
@@ -320,7 +328,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   const [optionsItem, setOptionsItem] = useState<MenuItem | null>(null);
   const [menuType, setMenuType] = useState<'FOOD' | 'DRINK'>('FOOD');
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
-  const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill' | 'crm'>('tables');
+  const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill' | 'bills' | 'crm'>('tables');
   const [showMobileCheckoutModal, setShowMobileCheckoutModal] = useState(false);
   const [showWhatsAppBillModal, setShowWhatsAppBillModal] = useState(false);
   const [waBillName, setWaBillName] = useState('');
@@ -466,6 +474,19 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
         customerPhone: phone
       }));
     } else {
+      setDefaultCustomerPhone(phone);
+    }
+  };
+
+  const setCustomerDetails = (name: string, phone: string) => {
+    if (orderType === 'DINE_IN' && selectedTableId) {
+      updateTableCart(selectedTableId, (cart) => ({
+        ...cart,
+        customerName: name || cart.customerName,
+        customerPhone: phone
+      }));
+    } else {
+      if (name) setDefaultCustomerName(name);
       setDefaultCustomerPhone(phone);
     }
   };
@@ -1477,8 +1498,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
       return;
     }
 
-    if (nameToUse) setCustomerName(nameToUse);
-    setCustomerPhone(phoneToUse);
+    setCustomerDetails(nameToUse, phoneToUse);
     onSaveCrmCustomer?.(nameToUse || 'Guest', phoneToUse, !matchedCustomer);
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
@@ -2018,6 +2038,21 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
             </div>
           )}
 
+          {mobileTab === 'bills' && (
+            <div className="h-full overflow-y-auto pb-20">
+              <OrdersList
+                title="All Bills"
+                orders={orders}
+                onUpdateStatus={onUpdateOrderStatus || (() => {})}
+                onDeleteOrder={onDeleteOrder || (() => {})}
+                restaurantInfo={restaurantInfo}
+                taxRate={taxRate}
+                drinkTaxRate={drinkTaxRate}
+                categories={categories}
+              />
+            </div>
+          )}
+
           {mobileTab === 'crm' && (
             <div className="h-full overflow-hidden">
               <CrmScreen
@@ -2097,19 +2132,6 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-black uppercase text-gray-500 mb-1">Customer Name</label>
-                  <div className="relative">
-                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder={findCrmCustomerByPhone(customerPhone)?.name || "Enter customer name"}
-                      className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#F57C00]"
-                    />
-                  </div>
-                </div>
-                <div>
                   <label className="block text-xs font-black uppercase text-gray-500 mb-1">Phone Number (CRM / WhatsApp)</label>
                   <div className="relative">
                     <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -2118,6 +2140,24 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="Enter 10-digit phone number"
+                      className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#F57C00]"
+                    />
+                  </div>
+                  {findCrmCustomerByPhone(customerPhone) && (
+                    <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                      Saved in CRM: {findCrmCustomerByPhone(customerPhone)?.name} ({findCrmCustomerByPhone(customerPhone)?.totalOrders || 1} {(findCrmCustomerByPhone(customerPhone)?.totalOrders || 1) === 1 ? 'visit' : 'visits'})
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase text-gray-500 mb-1">Customer Name</label>
+                  <div className="relative">
+                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder={findCrmCustomerByPhone(customerPhone)?.name || "Enter customer name"}
                       className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#F57C00]"
                     />
                   </div>
@@ -2185,7 +2225,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           </button>
           <button
             onClick={() => setMobileTab('bill')}
-            className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${
               mobileTab === 'bill' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
             }`}
           >
@@ -2193,8 +2233,17 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
             <span className="text-[10px]">Bill</span>
           </button>
           <button
+            onClick={() => setMobileTab('bills')}
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${
+              mobileTab === 'bills' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
+            }`}
+          >
+            <Receipt size={18} />
+            <span className="text-[10px]">All Bills</span>
+          </button>
+          <button
             onClick={() => setMobileTab('crm')}
-            className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${
               mobileTab === 'crm' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
             }`}
           >

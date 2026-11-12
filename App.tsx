@@ -1654,6 +1654,9 @@ const App: React.FC = () => {
         crmOfferMessage={crmOfferMessage}
         onSaveCrmOfferMessage={handleSaveCrmOfferMessage}
         onUpdateCrmCustomerMessage={handleUpdateCrmCustomerMessage}
+        orders={orders}
+        onUpdateOrderStatus={handleUpdateOrderStatus}
+        onDeleteOrder={handleDeleteOrder}
         billCounter={billCounter}
         variant="mobile"
       />
