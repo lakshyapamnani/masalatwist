@@ -102,7 +102,6 @@ const ONBOARDING_STEPS = [
 
 const App: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('TABLES');
-  const [mobileShowSettings, setMobileShowSettings] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   // Auth state
@@ -1639,38 +1638,6 @@ const App: React.FC = () => {
       );
     }
 
-    if (mobileShowSettings) {
-      return (
-        <MenuManagement
-          categories={categories}
-          menuItems={menuItems}
-          taxRate={taxRate}
-          drinkTaxRate={drinkTaxRate}
-          restaurantInfo={restaurantInfo}
-          tables={tables}
-          floors={floors}
-          setTaxRate={handleSaveTaxRate}
-          setDrinkTaxRate={handleSaveDrinkTaxRate}
-          setRestaurantInfo={handleSaveRestaurantInfo}
-          onAddMenuItem={handleAddMenuItem}
-          onUpdateMenuItem={handleUpdateMenuItem}
-          onDeleteMenuItem={handleDeleteMenuItem}
-          onAddCategory={handleAddCategory}
-          onUpdateCategory={handleUpdateCategory}
-          onDeleteCategory={handleDeleteCategory}
-          onAddTable={handleAddTable}
-          onUpdateTable={handleUpdateTable}
-          onDeleteTable={handleDeleteTable}
-          onAddFloor={handleAddFloor}
-          onDeleteFloor={handleDeleteFloor}
-          onResetMenuDatabase={handleResetMenuDatabase}
-          onFactoryReset={handleFactoryReset}
-          onResetBillCounter={handleResetBillCounter}
-          onBack={() => setMobileShowSettings(false)}
-        />
-      );
-    }
-
     return (
       <BillingScreen
         categories={categories}
@@ -1692,6 +1659,23 @@ const App: React.FC = () => {
         orders={orders}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         onDeleteOrder={handleDeleteOrder}
+        setTaxRate={handleSaveTaxRate}
+        setDrinkTaxRate={handleSaveDrinkTaxRate}
+        setRestaurantInfo={handleSaveRestaurantInfo}
+        onAddMenuItem={handleAddMenuItem}
+        onUpdateMenuItem={handleUpdateMenuItem}
+        onDeleteMenuItem={handleDeleteMenuItem}
+        onAddCategory={handleAddCategory}
+        onUpdateCategory={handleUpdateCategory}
+        onDeleteCategory={handleDeleteCategory}
+        onAddTable={handleAddTable}
+        onUpdateTable={handleUpdateTable}
+        onDeleteTable={handleDeleteTable}
+        onAddFloor={handleAddFloor}
+        onDeleteFloor={handleDeleteFloor}
+        onResetMenuDatabase={handleResetMenuDatabase}
+        onFactoryReset={handleFactoryReset}
+        onResetBillCounter={handleResetBillCounter}
         billCounter={billCounter}
         variant="mobile"
       />
@@ -1725,7 +1709,7 @@ const App: React.FC = () => {
             <div className="w-8 h-8 bg-[#F57C00] rounded-lg flex items-center justify-center font-bold text-white">D</div>
             <span className="text-lg font-bold tracking-tight">DRONA <span className="text-[#F57C00]">POS</span></span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -1738,19 +1722,6 @@ const App: React.FC = () => {
             >
               <RotateCcw size={13} />
               <span>INV-1</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileShowSettings((prev) => !prev)}
-              title="Settings / Configuration"
-              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition-all active:scale-95 ${
-                mobileShowSettings
-                  ? 'bg-[#F57C00] text-white border-[#F57C00]'
-                  : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
-              }`}
-            >
-              <Settings size={14} />
-              <span>{mobileShowSettings ? 'POS' : 'Settings'}</span>
             </button>
             {isOnline ? (
               <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full">

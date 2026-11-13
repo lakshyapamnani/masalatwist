@@ -27,7 +27,8 @@ import {
   MessageSquare,
   Phone,
   MessageCircle,
-  Receipt
+  Receipt,
+  Settings
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { QRCodeSVG } from 'qrcode.react';
@@ -35,6 +36,7 @@ import { Category, MenuItem, CartItem, OrderType, PaymentMode, Order, OrderStatu
 import TablesGrid from './TablesGrid';
 import CrmScreen from './CrmScreen';
 import OrdersList from './OrdersList';
+import MenuManagement from './MenuManagement';
 import { calculateOrderTax, calculateOrderTotals } from '../utils/tax';
 import { buildWaMeUrl, buildBillWhatsAppMessage } from '../utils/whatsapp';
 import { db } from '../firebase';
@@ -292,6 +294,23 @@ interface BillingScreenProps {
   orders?: Order[];
   onUpdateOrderStatus?: (id: string, status: OrderStatus) => void;
   onDeleteOrder?: (id: string) => void;
+  setTaxRate?: (rate: number) => void;
+  setDrinkTaxRate?: (rate: number) => void;
+  setRestaurantInfo?: (info: RestaurantInfo) => void;
+  onAddMenuItem?: (item: Omit<MenuItem, 'id'>) => void;
+  onUpdateMenuItem?: (item: MenuItem) => void;
+  onDeleteMenuItem?: (id: string) => void;
+  onAddCategory?: (name: string, type?: 'FOOD' | 'DRINK', taxType?: 'VAT' | 'GST' | 'MRP') => void;
+  onUpdateCategory?: (cat: Category) => void;
+  onDeleteCategory?: (id: string) => void;
+  onAddTable?: (name: string, floorId?: string) => void;
+  onUpdateTable?: (table: Table) => void;
+  onDeleteTable?: (id: string) => void;
+  onAddFloor?: (name: string) => void;
+  onDeleteFloor?: (id: string) => void;
+  onResetMenuDatabase?: () => void;
+  onFactoryReset?: () => void;
+  onResetBillCounter?: () => void;
   selectedTableId?: string | null;
   onBackToTables?: () => void;
   variant?: 'desktop' | 'mobile';
@@ -318,6 +337,23 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   orders = [],
   onUpdateOrderStatus,
   onDeleteOrder,
+  setTaxRate,
+  setDrinkTaxRate,
+  setRestaurantInfo,
+  onAddMenuItem,
+  onUpdateMenuItem,
+  onDeleteMenuItem,
+  onAddCategory,
+  onUpdateCategory,
+  onDeleteCategory,
+  onAddTable,
+  onUpdateTable,
+  onDeleteTable,
+  onAddFloor,
+  onDeleteFloor,
+  onResetMenuDatabase,
+  onFactoryReset,
+  onResetBillCounter,
   selectedTableId: selectedTableIdProp = null,
   onBackToTables,
   variant = 'desktop',
@@ -329,7 +365,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
   const [optionsItem, setOptionsItem] = useState<MenuItem | null>(null);
   const [menuType, setMenuType] = useState<'FOOD' | 'DRINK'>('FOOD');
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
-  const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill' | 'bills' | 'crm'>('tables');
+  const [mobileTab, setMobileTab] = useState<'tables' | 'menu' | 'bill' | 'bills' | 'crm' | 'settings'>('tables');
   const [showMobileCheckoutModal, setShowMobileCheckoutModal] = useState(false);
   const [showWhatsAppBillModal, setShowWhatsAppBillModal] = useState(false);
   const [waBillName, setWaBillName] = useState('');
@@ -2089,6 +2125,38 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
               />
             </div>
           )}
+
+          {mobileTab === 'settings' && (
+            <div className="h-full overflow-hidden pb-16">
+              <MenuManagement
+                categories={categories}
+                menuItems={menuItems}
+                taxRate={taxRate}
+                drinkTaxRate={drinkTaxRate}
+                restaurantInfo={restaurantInfo}
+                tables={tables}
+                floors={floors}
+                setTaxRate={setTaxRate || (() => {})}
+                setDrinkTaxRate={setDrinkTaxRate || (() => {})}
+                setRestaurantInfo={setRestaurantInfo || (() => {})}
+                onAddMenuItem={onAddMenuItem || (() => {})}
+                onUpdateMenuItem={onUpdateMenuItem || (() => {})}
+                onDeleteMenuItem={onDeleteMenuItem || (() => {})}
+                onAddCategory={onAddCategory || (() => {})}
+                onUpdateCategory={onUpdateCategory || (() => {})}
+                onDeleteCategory={onDeleteCategory || (() => {})}
+                onAddTable={onAddTable || (() => {})}
+                onUpdateTable={onUpdateTable || (() => {})}
+                onDeleteTable={onDeleteTable || (() => {})}
+                onAddFloor={onAddFloor || (() => {})}
+                onDeleteFloor={onDeleteFloor || (() => {})}
+                onResetMenuDatabase={onResetMenuDatabase}
+                onFactoryReset={onFactoryReset}
+                onResetBillCounter={onResetBillCounter}
+                onBack={() => setMobileTab('tables')}
+              />
+            </div>
+          )}
         </div>
 
         {/* WhatsApp Bill Customer Popup */}
@@ -2245,10 +2313,10 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           <ChevronUp size={20} />
         </button>
 
-        <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.05)] flex items-center justify-around px-2 z-50">
+        <div className="fixed bottom-0 left-0 right-0 h-16 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.05)] flex items-center justify-around px-1 z-50">
           <button
             onClick={() => setMobileTab('tables')}
-            className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${
               mobileTab === 'tables' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
             }`}
           >
@@ -2257,7 +2325,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           </button>
           <button
             onClick={() => setMobileTab('menu')}
-            className={`flex flex-col items-center justify-center w-16 h-full gap-1 ${
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${
               mobileTab === 'menu' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
             }`}
           >
@@ -2290,6 +2358,15 @@ const BillingScreen: React.FC<BillingScreenProps> = ({
           >
             <Users size={18} />
             <span className="text-[10px]">CRM</span>
+          </button>
+          <button
+            onClick={() => setMobileTab('settings')}
+            className={`flex flex-col items-center justify-center flex-1 h-full gap-1 ${
+              mobileTab === 'settings' ? 'text-[#F57C00] font-bold' : 'text-gray-400'
+            }`}
+          >
+            <Settings size={18} />
+            <span className="text-[10px]">Settings</span>
           </button>
         </div>
       </div>
